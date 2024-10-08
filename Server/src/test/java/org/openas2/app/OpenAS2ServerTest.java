@@ -2,7 +2,7 @@ package org.openas2.app;
 
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.filefilter.PrefixFileFilter;
-import org.apache.commons.lang.RandomStringUtils;
+import org.apache.commons.lang3.RandomStringUtils;
 import org.apache.commons.lang3.exception.ExceptionUtils;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
@@ -55,8 +55,7 @@ public class OpenAS2ServerTest {
     @BeforeAll
     public static void startServers() throws Exception {
         tmp = Files.createTempDirectory("testResources").toFile();
-        //System.setProperty("org.openas2.logging.defaultlog", "TRACE");
-        System.setProperty("org.apache.commons.logging.Log", "org.openas2.logging.Log");
+        //System.setProperty("OPENAS2_LOG_LEVEL", "TRACE");
         try {
             serverA = new OpenAS2Server.Builder().run(RESOURCE.get("OpenAS2A", "config", "config.xml").getAbsolutePath());
             // Get the data folder from Properties before starting the other server as it overwrites the Properties

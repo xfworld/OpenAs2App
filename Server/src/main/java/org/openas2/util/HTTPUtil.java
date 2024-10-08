@@ -1,8 +1,8 @@
 package org.openas2.util;
 
 import org.apache.commons.io.IOUtils;
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.apache.http.HttpHost;
 import org.apache.http.NameValuePair;
 import org.apache.http.auth.AuthScope;
@@ -34,9 +34,9 @@ import org.openas2.OpenAS2Exception;
 import org.openas2.WrappedException;
 import org.openas2.message.Message;
 
-import javax.mail.Header;
-import javax.mail.MessagingException;
-import javax.mail.internet.InternetHeaders;
+import jakarta.mail.Header;
+import jakarta.mail.MessagingException;
+import jakarta.mail.internet.InternetHeaders;
 import javax.net.ssl.*;
 import java.io.*;
 import java.net.*;
@@ -131,7 +131,7 @@ public class HTTPUtil {
 
     public static byte[] readHTTP(InputStream inStream, OutputStream outStream, InternetHeaders headerCache, List<String> httpRequest) throws IOException, MessagingException {
         byte[] data = null;
-        Log logger = LogFactory.getLog(HTTPUtil.class.getSimpleName());
+        Logger logger = LoggerFactory.getLogger(HTTPUtil.class);
 
         // Get the stream and read in the HTTP request and headers
         BufferedInputStream in = new BufferedInputStream(inStream);
@@ -233,7 +233,7 @@ public class HTTPUtil {
             } else {
                 HTTPUtil.sendHTTPResponse(outStream, HttpURLConnection.HTTP_LENGTH_REQUIRED, null);
                 if ("true".equals(Properties.getProperty(Properties.LOG_INVALID_HTTP_REQUEST, "true"))) {
-                  Log logger = LogFactory.getLog(HTTPUtil.class.getSimpleName());
+                  Logger logger = LoggerFactory.getLogger(HTTPUtil.class);
                   logger.warn("The request either contained no data or has issues with the Transfer-Encoding or Content-Length: : " + request.get(0) + " " + request.get(1) + "\n\tHeaders: " + printHeaders(msg.getHeaders().getAllHeaders(), "==", ";;"));
                 }
                 return null;
@@ -376,7 +376,7 @@ public class HTTPUtil {
                 rb.setEntity(httpEntity);
             }
         }
-            
+
         final HttpUriRequest request = rb.build();
 
         BasicHttpContext localcontext = new BasicHttpContext();

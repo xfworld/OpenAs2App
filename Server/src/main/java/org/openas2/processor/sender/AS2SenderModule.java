@@ -1,8 +1,8 @@
 package org.openas2.processor.sender;
 
 import org.apache.commons.io.filefilter.AgeFileFilter;
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.openas2.ComponentNotFoundException;
 import org.openas2.OpenAS2Exception;
 import org.openas2.Session;
@@ -21,6 +21,7 @@ import org.openas2.params.InvalidParameterException;
 import org.openas2.params.MessageParameters;
 import org.openas2.params.ParameterParser;
 import org.openas2.partner.Partnership;
+import org.openas2.processor.Processor;
 import org.openas2.processor.msgtracking.BaseMsgTrackingModule.FIELDS;
 import org.openas2.processor.resender.ResenderModule;
 import org.openas2.schedule.HasSchedule;
@@ -32,9 +33,9 @@ import org.openas2.util.IOUtil;
 import org.openas2.util.Properties;
 import org.openas2.util.ResponseWrapper;
 
-import javax.mail.MessagingException;
-import javax.mail.internet.InternetHeaders;
-import javax.mail.internet.MimeBodyPart;
+import jakarta.mail.MessagingException;
+import jakarta.mail.internet.InternetHeaders;
+import jakarta.mail.internet.MimeBodyPart;
 import javax.net.ssl.SSLHandshakeException;
 
 import java.io.File;
@@ -49,12 +50,11 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
-import java.util.logging.Level;
-import java.util.logging.Logger;
+
 
 public class AS2SenderModule extends HttpSenderModule implements HasSchedule {
 
-    private Log logger = LogFactory.getLog(AS2SenderModule.class.getSimpleName());
+    private Logger logger = LoggerFactory.getLogger(AS2SenderModule.class);
 
     /** TODO: Remove this when module config enforces setting the action so that the super method does all the work
     *
@@ -108,9 +108,9 @@ public class AS2SenderModule extends HttpSenderModule implements HasSchedule {
 
             storePendingInfo((AS2Message) msg, isResend);
         } catch (Exception e) {
-            msg.setLogMsg(org.openas2.logging.Log.getExceptionMsg(e));
-            logger.error(msg, e);
-            // Log significant msg state
+            msg.setLogMsg(org.openas2.util.Logging.getExceptionMsg(e));
+            logger.error(msg.getLogMsg(), e);
+            // Logger significant msg state
             msg.setOption("STATE", Message.MSG_STATE_SEND_EXCEPTION);
             msg.trackMsgState(getSession());
             throw new OpenAS2Exception("Error setting up message for sending.", e);
@@ -127,29 +127,29 @@ public class AS2SenderModule extends HttpSenderModule implements HasSchedule {
         url = ParameterParser.parse(url, params);
         try {
             // Create the HTTP connection and set up headers
-            // Log significant msg state
+            // Logger significant msg state
             msg.setOption("STATE", Message.MSG_STATE_SEND_START);
             msg.trackMsgState(getSession());
 
             sendMessage(url, msg, securedData);
         } catch (HttpResponseException hre) {
             // Will have been logged so just resend
-            // Log significant msg state
+            // Logger significant msg state
             msg.setOption("STATE", Message.MSG_STATE_SEND_EXCEPTION);
             msg.trackMsgState(getSession());
             resend(msg, hre, false);
             return;
         } catch (SSLHandshakeException e) {
             msg.setLogMsg("Failed to connect to partner using SSL certificate. Please run the SSL certificate checker utility to identify the issue: " + url);
-            logger.error(msg, e);
+            logger.error(msg.getLogMsg(), e);
             msg.setOption("STATE", Message.MSG_STATE_SEND_FAIL);
             msg.trackMsgState(getSession());
             return;
         } catch (Exception e) {
-            msg.setLogMsg("Unexpected error sending file: " + org.openas2.logging.Log.getExceptionMsg(e));
-            logger.error(msg, e);
-            resend(msg, new OpenAS2Exception(org.openas2.logging.Log.getExceptionMsg(e)), false);
-            // Log significant msg state
+            msg.setLogMsg("Unexpected error sending file: " + org.openas2.util.Logging.getExceptionMsg(e));
+            logger.error(msg.getLogMsg(), e);
+            resend(msg, new OpenAS2Exception(org.openas2.util.Logging.getExceptionMsg(e)), false);
+            // Logger significant msg state
             msg.setOption("STATE", Message.MSG_STATE_SEND_EXCEPTION);
             msg.trackMsgState(getSession());
             return;
@@ -197,7 +197,7 @@ public class AS2SenderModule extends HttpSenderModule implements HasSchedule {
         int rc = resp.getStatusCode();
         if ((rc != HttpURLConnection.HTTP_OK) && (rc != HttpURLConnection.HTTP_CREATED) && (rc != HttpURLConnection.HTTP_ACCEPTED) && (rc != HttpURLConnection.HTTP_PARTIAL) && (rc != HttpURLConnection.HTTP_NO_CONTENT)) {
             msg.setLogMsg("Error sending message. URL: " + url + " ::: Response Code: " + rc + " " + resp.getStatusPhrase() + " ::: Response Message: " + resp.getBody().toString());
-            logger.error(msg);
+            logger.error(msg.getLogMsg());
             throw new HttpResponseException(url, rc, resp.getStatusPhrase());
         }
         // So far so good ...
@@ -215,7 +215,7 @@ public class AS2SenderModule extends HttpSenderModule implements HasSchedule {
         if (msg.getPartnership().isAsyncMDN()) {
             // Async MDN
             msg.setStatus(Message.MSG_STATUS_MDN_WAIT);
-            // Log significant msg state
+            // Logger significant msg state
             msg.setOption("STATE", Message.MSG_STATE_MSG_SENT_AWAIT_ASYNC_MDN_RESPONSE);
             msg.trackMsgState(getSession());
         } else {
@@ -246,9 +246,9 @@ public class AS2SenderModule extends HttpSenderModule implements HasSchedule {
                      * Something unexpected (assumes a resend was not successfully initiated)
                      */
                     msg.setLogMsg("Unhandled error condition processing synchronous MDN. Message and associated files cleanup will be attempted but may be in an unknown state.");
-                    logger.error(msg, e);
+                    logger.error(msg.getLogMsg(), e);
                 }
-                // Log significant msg state
+                // Logger significant msg state
                 msg.setOption("STATE", Message.MSG_STATE_MSG_SENT_MDN_PROCESSING_ERROR);
                 msg.trackMsgState(getSession());
                 AS2Util.cleanupFiles(msg, true);
@@ -442,7 +442,7 @@ public class AS2SenderModule extends HttpSenderModule implements HasSchedule {
         InternetHeaders ih = new InternetHeaders();
 
         ih.addHeader(HTTPUtil.HEADER_CONNECTION, "close, TE");
-        String userAgent = Properties.getProperty(Properties.HTTP_USER_AGENT_PROP, msg.getAppTitle() + " (" + AS2SenderModule.class.getSimpleName() + ")");
+        String userAgent = Properties.getProperty(Properties.HTTP_USER_AGENT_PROP, msg.getAppTitle() + " (" + AS2SenderModule.class + ")");
         ih.addHeader("User-Agent", userAgent);
 
         // Ensure date is formatted in english so there are only USASCII chars to avoid
@@ -538,7 +538,7 @@ public class AS2SenderModule extends HttpSenderModule implements HasSchedule {
         ObjectOutputStream oos = null;
 
         try {
-            String pendingInfoFile = AS2Util.buildPendingFileName(msg, getSession().getProcessor(), "pendingmdninfo");
+            String pendingInfoFile = AS2Util.buildPendingFileName(msg, getSession().getProcessor(), Processor.PENDING_MDN_INFO_DIRECTORY_IDENTIFIER);
             String pendingFile = msg.getAttribute(FileAttribute.MA_PENDINGFILE);
             msg.setAttribute(FileAttribute.MA_PENDINGFILE, pendingFile);
             msg.setAttribute(FileAttribute.MA_PENDINGINFO, pendingInfoFile);
@@ -578,8 +578,8 @@ public class AS2SenderModule extends HttpSenderModule implements HasSchedule {
 
             }
         } catch (Exception e) {
-            msg.setLogMsg("Error setting up pending information files: " + org.openas2.logging.Log.getExceptionMsg(e));
-            logger.error(msg, e);
+            msg.setLogMsg("Error setting up pending information files: " + org.openas2.util.Logging.getExceptionMsg(e));
+            logger.error(msg.getLogMsg(), e);
             throw new Exception("Unable to set up pending information files.");
         } finally {
             if (oos != null) {
@@ -617,7 +617,7 @@ public class AS2SenderModule extends HttpSenderModule implements HasSchedule {
     protected void detectFailedSentMessages() {
         String dir;
         try {
-            dir = getSession().getProcessor().getParameters().get("pendingmdninfo");
+            dir = getSession().getProcessor().getParameters().get(Processor.PENDING_MDN_INFO_DIRECTORY_IDENTIFIER);
         } catch (ComponentNotFoundException e) {
             logger.warn("Failed to retrieve the name of the pending info folder for sent messages in trying to run the failed message detection method.", e);
             return;
@@ -629,7 +629,7 @@ public class AS2SenderModule extends HttpSenderModule implements HasSchedule {
             logger.warn("Failed to open the pending info folder for sent messages in trying to run the failed message detection method.", e);
             return;
         } catch (InvalidParameterException ex) {
-            Logger.getLogger(AS2SenderModule.class.getName()).log(Level.SEVERE, null, ex);
+            logger.error(null, ex);
             return;
         }
         // We are interested in files older than configured seconds
@@ -646,15 +646,15 @@ public class AS2SenderModule extends HttpSenderModule implements HasSchedule {
             try {
                 AS2Util.getMetaData(msg, inFile);
             } catch (Exception e) {
-                // Log the message
+                // Logger the message
                 logger.warn("Exception occurred processing stale pending info file: " + inFile.getAbsolutePath() + " Error was: " + e.getMessage(), e);
             } finally {
                 String msgStr = "Pending information file detected that is past max wait time, Failure most likely due to not receiving MDN response in Async mode: " + inFile.getAbsolutePath();
                 msg.setLogMsg(msgStr);
                 msg.setStatus(Message.MSG_STATUS_MSG_TERMINATED_IN_ERROR);
-                logger.error(msg, null);
+                logger.error(msg.getLogMsg());
                 AS2Util.cleanupFiles(msg, true);
-                // Log significant msg state
+                // Logger significant msg state
                 msg.setOption("STATE", Message.MSG_STATE_MDN_ASYNC_RECEIVE_FAIL);
                 msg.trackMsgState(getSession());                
             }
